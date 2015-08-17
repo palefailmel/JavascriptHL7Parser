@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+    <!--
+        Author: Michael Stevenson
+        Date  : 2015-08-16
+        Desc  : Takes an HL7 message pasted in the provided textare and parses it out on the page so that you
+                can see each field's position their respective segments, and what each field contains. Including components, repeating fields, subcomponents, etc.
+                
+                This was born out of a combination of boredom and a remembrance of what it was like when I first started at my integration job.
+                Just glancing and knowing what is in the exact field they mention is sometimes not as easy as it seems.
+                
+                Currently this parser doesn't take into account the escape character, so it splits on everything, even if the value is supposed to be escaped.
+                I plan on fixing that sometime soon in Valve time. In other words, feel free to fix it and submit a pull request, or I will eventually fix it when I get bored.
+    -->
+    <head>
+        <title>Javascript HL7 Parser</title>
+    </head>
+    <body>
+        <h2>Javascript Hl7 Parser</h2>
+        <small>by Michael Stevenson</small>
+        <!-- sample message -->
+        <h4>HL7 Sample Message to check parser out</h4>
+        <small><a href="http://www.interfaceware.com/blog/components-of-an-hl7-message/">Sample message copied from Interfaceware (with one or two modifications)</a>
+        <pre>
+MSH|^~\&|EPIC|EPICADT|SMS|SMSADT|199912271408|CHARRIS|ADT^A04|1817457|D|  2.5|
+PID||0493575^^^2^ID 1|454721||DOE^JOHN^^^^|DOE^JOHN^^^^|19480203|M||B|25  4 MYSTREET AVE^^MYTOWN^OH^44123^USA||(216)123-4567|||M|NON|400003403~1129086|
+NK1||ROE^MARIE^^^^|SPO||(216)123-4567||EC|||||||||||||||||||||||||||
+PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||2688684|||||one^test&three&four||||||||||||||||||||199912271408||||||002376853
+        </pre>
+        <textarea id="msgArea"></textarea>
+        <button onClick="javascript:HL7Parser.tryParse();">Parse</button>
+        
+        <script type="text/javascript">
+            var HL7Parser = {
+                // initially set seperators to typical Hl7 values
+                fieldSep      : '|',
+                compSep       : '^',
+                subCompSep    : '&',
+                repeatSep     : '~',
+                escapeChar    : '\\',
+                // replace separators with actual separators from message
+                setSeparators : function() {
+                    this.fieldSep   = this.originalMsg.substring(3,4);
+                    this.compSep    = this.originalMsg.substring(4,5);
+                    this.repeatSep = this.originalMsg.substring(5,6);
+                    this.subCompSep  = this.originalMsg.substring(7,8);
+                    this.escapeChar = this.originalMsg.substring(6,7);
+                },
+                // separate message segments into a list
+                separateSegs  : function() {
+                    this.segments = this.originalMsg.split("\n");
+                    // remove any whitespace around this segments, just in case
+                    for (var i = 0; i < this.segments.length; i++) {
+                        this.segments[i] = this.segments[i].trim();
+                    }
+                },
+                // parse out the segments
+                parseSegs     : function(segFields) {
+                    for (var i = 0; i < this.segments.length; i++) {
+                        var currSeg       = this.segments[i];
+                        var currSegFields = currSeg.split(this.fieldSep);
+                        
+                        // cleanup list and remove last item if it's empty
+                        // this will always happen if the segments ends with the field sep
+                        if (currSegFields[(currSegFields.length - 1)] == '') currSegFields.splice(-1,1);
+                        
+                        //  if we're at the MSH set the info header
+                        if (currSegFields[0] == 'MSH') {
+                            this.addMSHHeader(currSegFields);
+                        }
+                        
+                        // add segment header for each segment
+                        this.addSegHeader(currSegFields);
+                        // add segment field information
+                        this.addSegFields(currSegFields);
+                    }
+                },
+                // add segment header to page
+                addSegHeader  : function(segFields) {
+                    var headerObj       = document.createElement('h4');
+                    var headerString    = '';
+                    // display what type of segment it is
+                    headerString       += segFields[0] + " segment - ";
+                    // display how many fields are in the segment 
+                    // (without counting the first item, which is just the segment name)
+                    headerString       += (segFields.length -1) + " fields";
+                    headerObj.innerHTML = headerString;
+                    // add segment header bottom of page
+                    document.body.appendChild(headerObj);
+                },
+                addMSHHeader  : function(mshSegFields) {
+                    var headerObj       = document.createElement('h3');
+                    var headerString    = '';
+                    // add message type to header
+                    headerString        += "Message Type: " + mshSegFields[8];
+                    // add HL7 version to header
+                    headerString        += " - HL7 Version: " + mshSegFields[11];
+                    // add datetime in MSH segment to header
+                    headerString        += " - Date/Time of Msg: " + mshSegFields[6];
+                    headerObj.innerHTML = headerString;
+                    // add to page
+                    document.body.appendChild(headerObj);
+                },
+                addSegFields       : function(segFields) {
+                    // create list to add info to
+                    var fieldList             = document.createElement("ul");
+                    fieldList.style.listStyle = "none";
+                    
+                    // add to page
+                    document.body.appendChild(fieldList);
+                    
+                    // iterate through fields to add to list
+                    for (var i = 1, size = segFields.length; i < size; i++) {
+                        var listItem = document.createElement("li");
+                        // add base field info and position
+                        listItem.innerHTML = "<b>[" + (i) + "]</b> " + segFields[i];
+                        fieldList.appendChild(listItem);
+                        
+                        // if not in MSH, look for repeating and other separators
+                        // the MSH does have compound fields and other things
+                        // but it isn't worth cluttering the page
+                        if (segFields[0] != 'MSH') {
+                            // now check in order
+                            
+                            /*
+                                order of checks:
+                                    1. repeating     (this.repeatSep)
+                                    2. components    (this.compSep)
+                                    3. subcomponents (this.subCompSep)
+                                    
+                                    we're also subtracting one from the index
+                                    when we pass it along because we're ignoring
+                                    that the segment name is in the list
+                            */
+                            
+                            // check for repeating
+                            if (segFields[i].indexOf(this.repeatSep) > -1) {
+                                this.addRepeatingFields(i-1, segFields[i], listItem);
+                            // check for component
+                            } else if (segFields[i].indexOf(this.compSep) > -1) {
+                                this.addComponents(i-1,null,segFields[i],listItem);
+                            // now check for subcomponent
+                            } else if (segFields[i].indexOf(this.subCompSep) > -1) {
+                                this.addSubComps(i-1,null,0,segFields[i],listItem);
+                            }
+                            
+                        }
+                    }
+                },
+                addRepeatingFields : function(fieldIndex, fieldToSplit, parentItem) {
+                    if (fieldToSplit.indexOf(this.repeatSep) > -1) {
+                        var repListElem             = document.createElement("ul");
+                        repListElem.style.listStyle = "none";
+                        
+                        var repList     = fieldToSplit.split(this.repeatSep);
+                        for (var i = 0, size = repList.length; i < size; i++) {
+                            // don't do anything for only one value
+                            if (size < 2) {
+                                // still check for components or subcomponents to add
+                                var field = repList[i];
+                                if (field.indexOf(this.compSep) > -1) {
+                                    this.addComponents(fieldIndex,null,field,parentItem);
+                                } else if (field.indexOf(this.subCompSep) > -1) {
+                                    // add subcomponents, default to 0 component index since we don't actually have any
+                                    this.addSubComps(fieldIndex,null,0,field,parentItem);
+                                }
+                                return;
+                            }
+                            
+                            var itemText       = "<b>[" + (fieldIndex+1) + "] ";
+                            itemText          += "<i><small>(" + i + ")</small> " + repList[i];
+                            
+                            var itemElem       = document.createElement("li");
+                            itemElem.innerHTML = itemText;
+                            repListElem.appendChild(itemElem);
+                            
+                            if (repList[i].indexOf(this.compSep) > -1) {
+                                this.addComponents(fieldIndex, i, repList[i], itemElem);
+                            } else if (repList[i].indexOf(this.subCompSep) > -1) {
+                                this.addSubComps(fieldIndex, i, 0, repList[i], itemElem);
+                            }
+                        }
+                        if (size > 1) {
+                            parentItem.appendChild(repListElem);
+                        }
+                    }
+                    
+                    return;
+                },
+                addComponents      : function(fieldIndex, repeatIndex, fieldToSplit, parentItem) {
+                    if (fieldToSplit.indexOf(this.compSep) > -1) {
+                        var compListElem             = document.createElement("ul");
+                        compListElem.style.listStyle = "none";
+                        
+                        var compList     = fieldToSplit.split(this.compSep);
+                        for (var i = 0, size = compList.length; i < size; i++) {
+                            // don't do anything for only one value
+                            if (size < 2) return false;
+                            
+                            var itemText       = "<b>[" + (fieldIndex + 1) + "." + (i+1) + "]</b>";
+                            if (repeatIndex)
+                                itemText      += "<i><small>(" + (repeatIndex+1) + ")</small> ";
+                            itemText          += compList[i];
+                            
+                            var itemElem       = document.createElement("li");
+                            itemElem.innerHTML = itemText;
+                            compListElem.appendChild(itemElem);
+                            
+                            // add subcomponents if separator exists
+                            if (compList[i].indexOf(this.subCompSep) > -1)
+                                this.addSubComps(fieldIndex, repeatIndex, i, compList[i], itemElem);
+                        }
+                        if (size > 1) {
+                            parentItem.appendChild(compListElem);
+                            
+                        }
+                        
+                        // success!
+                        return true;
+                    }
+                    
+                    if (fieldToSplit.indexOf(this.subCompSep) > -1) {
+                        this.addSubComps(fieldIndex, repeatIndex, 0, fieldToSplit, parentItem);
+                    }
+                    // return false if doesn't contain comp sep
+                    return false;
+                },
+                addSubComps        : function(fieldIndex, repeatIndex, componentIndex, fieldToSplit, parentItem) {
+                    if (fieldToSplit.indexOf(this.subCompSep) > -1) {
+                        var subCompListElem             = document.createElement("ul");
+                        subCompListElem.style.listStyle = "none";
+                        
+                        var subCompList     = fieldToSplit.split(this.subCompSep);
+                        for (var i = 0, size = subCompList.length; i < size; i++) {
+                            // don't do anything for only one value
+                            if (size < 2) return false;
+                            
+                            var itemText       =  "<b>[" + (fieldIndex+1) + "." + (componentIndex+1) + "." + (i+1) + "]</b> ";
+                            // only add the repeat index if it actually exists
+                            if (repeatIndex)
+                                itemText          += "<i><small>(" + repeatIndex + ")</small> ";
+                            itemText           += subCompList[i];
+                            
+                            var itemElem       = document.createElement("li");
+                            itemElem.innerHTML = itemText;
+                            subCompListElem.appendChild(itemElem);
+                        }
+                        
+                        parentItem.appendChild(subCompListElem);
+                        
+                        // return true if successful
+                        return true;
+                    } else {
+                        // return false if no subcomponents exist
+                        return false;
+                    }
+                },
+                // entry point into processing
+                tryParse           : function(msg) {
+                    var msgArea = document.getElementById('msgArea');
+                    var msg     = msgArea.value.trim();
+                    // check if string is empty or doesn't begin with MSH
+                    if (msg == '' || msg.substring(0,3) != 'MSH') {
+                        alert('Please supply an HL7 message in the textarea');
+                    } else {
+                        this.originalMsg = msg;
+                        this.setSeparators();
+                        this.separateSegs();
+                        this.parseSegs();
+                    }
+                }
+            };
+        </script>
+    </body>
+</html>
