@@ -18,6 +18,10 @@ The textarea depends on each segment being separated by a newline (\n), so messa
 
 Right now, it's known that the escape character isn't really checked for, I was lazy when I made this. I'll add that later.
 
+### Demo
+
+Demo is hosted at <http://mikeastevenson.github.io/javascripthl7parser>
+
 ## License
 
 Licensed under the MIT license.
