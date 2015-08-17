@@ -31,6 +31,13 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
         <button onClick="javascript:HL7Parser.tryParse();">Parse</button>
         
         <script type="text/javascript">
+            if(typeof String.prototype.trim !== 'function') {
+				String.prototype.trim = function() {
+					return this.replace(/^\s+|\s+$/g, '');
+				}
+			}
+		
+		
             var HL7Parser = {
                 // initially set seperators to typical Hl7 values
                 fieldSep      : '|',
@@ -87,6 +94,12 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     headerObj.innerHTML = headerString;
                     // add segment header bottom of page
                     document.body.appendChild(headerObj);
+					
+					
+					// add segment to seg header
+					var preObj = document.createElement('pre');
+					preObj.innerHTML = segFields.join(this.fieldSep);
+					document.body.appendChild(preObj);
                 },
                 addMSHHeader  : function(mshSegFields) {
                     var headerObj       = document.createElement('h3');
@@ -100,6 +113,14 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     headerObj.innerHTML = headerString;
                     // add to page
                     document.body.appendChild(headerObj);
+					
+					// go ahead and add message as well
+					var segs = this.originalMsg.split('\n');
+					for (var i = 0, size = segs.length; i < size; i++) {
+						var preObj = document.createElement('pre');
+						preObj.innerHTML = segs[i];
+						document.body.appendChild(preObj);
+					}
                 },
                 addSegFields       : function(segFields) {
                     // create list to add info to
