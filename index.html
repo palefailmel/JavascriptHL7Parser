@@ -17,7 +17,7 @@
     </head>
     <body>
         <h2>Javascript Hl7 Parser</h2>
-        <small>by Michael Stevenson</small>
+        <small>by Michael Stevenson - source on <a href="https://github.com/MikeAStevenson/JavascriptHL7Parser">GitHub</a></small>
         <!-- sample message -->
         <h4>HL7 Sample Message to check parser out</h4>
         <small><a href="http://www.interfaceware.com/blog/components-of-an-hl7-message/">Sample message copied from Interfaceware (with one or two modifications)</a>
@@ -27,17 +27,30 @@ PID||0493575^^^2^ID 1|454721||DOE^JOHN^^^^|DOE^JOHN^^^^|19480203|M||B|25  4 MYST
 NK1||ROE^MARIE^^^^|SPO||(216)123-4567||EC|||||||||||||||||||||||||||
 PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||2688684|||||one^test&three&four||||||||||||||||||||199912271408||||||002376853
         </pre>
+        
+        <p>
+            Just paste an HL7 message with newline separated segments and click Parse. Results will be displayed below the textarea and button!
+        </p>
+        
         <textarea id="msgArea" rows="15" style="width: 100%"></textarea>
-        <button onClick="javascript:HL7Parser.tryParse();">Parse</button>
+        <button onClick="javascript:HL7Parser.tryParse('msgArea', 'resultsArea');">Parse</button>
+        
+        <div id="resultsArea"></div>
         
         <script type="text/javascript">
+            /*
+                add the trim function if it doesn't exist
+            */
             if(typeof String.prototype.trim !== 'function') {
                 String.prototype.trim = function() {
                     return this.replace(/^\s+|\s+$/g, '');
                 }
             }
         
-        
+            
+            /*
+                This is the class that does all of the heavy lifting
+            */
             var HL7Parser = {
                 // initially set seperators to typical Hl7 values
                 fieldSep      : '|',
@@ -93,13 +106,15 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     headerString       += (segFields.length -1) + " fields";
                     headerObj.innerHTML = headerString;
                     // add segment header bottom of page
-                    document.body.appendChild(headerObj);
+                    this.resultsArea.appendChild(headerObj);
+                    //document.body.appendChild(headerObj);
                     
                     
                     // add segment to seg header
                     var preObj = document.createElement('pre');
                     preObj.innerHTML = segFields.join(this.fieldSep);
-                    document.body.appendChild(preObj);
+                    this.resultsArea.appendChild(preObj);
+                    //document.body.appendChild(preObj);
                 },
                 addMSHHeader  : function(mshSegFields) {
                     var headerObj       = document.createElement('h3');
@@ -112,14 +127,16 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     headerString        += " - Date/Time of Msg: " + mshSegFields[6];
                     headerObj.innerHTML = headerString;
                     // add to page
-                    document.body.appendChild(headerObj);
+                    this.resultsArea.appendChild(headerObj);
+                    //document.body.appendChild(headerObj);
                     
                     // go ahead and add message as well
                     var segs = this.originalMsg.split('\n');
                     for (var i = 0, size = segs.length; i < size; i++) {
                         var preObj = document.createElement('pre');
                         preObj.innerHTML = segs[i];
-                        document.body.appendChild(preObj);
+                        this.resultsArea.appendChild(preObj);
+                        //document.body.appendChild(preObj);
                     }
                 },
                 addSegFields       : function(segFields) {
@@ -128,7 +145,8 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     fieldList.style.listStyle = "none";
                     
                     // add to page
-                    document.body.appendChild(fieldList);
+                    this.resultsArea.appendChild(fieldList);
+                    //document.body.appendChild(fieldList);
                     
                     // iterate through fields to add to list
                     for (var i = 1, size = segFields.length; i < size; i++) {
@@ -277,13 +295,17 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                     }
                 },
                 // entry point into processing
-                tryParse           : function(msg) {
-                    var msgArea = document.getElementById('msgArea');
+                tryParse           : function(textAreaId, resultAreaId) {
+                    var msgArea = document.getElementById(textAreaId);
                     var msg     = msgArea.value.trim();
                     // check if string is empty or doesn't begin with MSH
                     if (msg == '' || msg.substring(0,3) != 'MSH') {
                         alert('Please supply an HL7 message in the textarea');
                     } else {
+                        // set the div to write to and clear it
+                        this.resultsArea = document.getElementById(resultAreaId);
+                        this.resultsArea.innerHTML = "";
+                    
                         this.originalMsg = msg;
                         this.setSeparators();
                         this.separateSegs();
