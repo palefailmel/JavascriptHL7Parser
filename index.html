@@ -84,8 +84,11 @@ PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||
                         // this will always happen if the segments ends with the field sep
                         if (currSegFields[(currSegFields.length - 1)] == '') currSegFields.splice(-1,1);
                         
-                        //  if we're at the MSH set the info header
+                        //  if we're at the MSH, correct segment numbering and set the info header
                         if (currSegFields[0] == 'MSH') {
+                            currSegFields[0] = this.fieldSep; // Replace the array's first value "MSH" with the Field Separator
+                            currSegFields.unshift("MSH");  // Add back "MSH" as the array's first value
+                            // set the info header
                             this.addMSHHeader(currSegFields);
                         }
                         
