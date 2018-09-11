@@ -14,13 +14,9 @@ The script takes the value of the textarea on the page and parses it out and att
 
 The textarea depends on each segment being separated by a newline (\n), so message may require some manipulation before being parsed correctly. It doesn't do much checking, it assumes that whoever uses it knows to post a proper HL7 message with newline separated segments.
 
-### Known Issues
-
-Right now, it's known that the escape character isn't really checked for, I was lazy when I made this. I'll add that later.
-
 ### Demo
 
-Demo is hosted at <http://mikeastevenson.github.io/javascripthl7parser>
+Demo is hosted at <http://horridcode.com/javascripthl7parser>
 
 ## License
 
