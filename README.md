@@ -16,7 +16,7 @@ The textarea depends on each segment being separated by a newline (\n), so messa
 
 ### Demo
 
-Demo is hosted at <http://horridcode.com/javascripthl7parser>
+Demo is hosted at <https://www.mikeastevenson.dev/javascript/javascripthl7parser/>
 
 ## License
 
