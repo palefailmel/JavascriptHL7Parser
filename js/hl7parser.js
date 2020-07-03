@@ -10,6 +10,10 @@ var HL7Parser = {
         PAGE: 'PAGE',
         JSON: 'JSON'
     },
+    STATUSES     : {
+        SUCCESS: 'SUCCESS',
+        ERROR: 'ERROR'
+    },
     message     : {},
     fieldSep    : '|',
     compSep     : '^',
@@ -17,26 +21,18 @@ var HL7Parser = {
     repeatSep   : '~',
     escapeChar  : '\\',
 
-    // entry point into processing
-    tryParse    : function(inboundMessage, outputType, resultAreaId) {
+    // parse message into object
+    parseMessage    : function(inboundMessage) {
         let msg = inboundMessage.trim();
 
-        console.log('this is a test');
-
-        // Check if string is empty or doesn't begin with MSH
         if (msg === '' || msg.substring(0,3) != 'MSH') {
-            // do something
+            this.message.resultStatus = this.STATUSES.ERROR
+            this.message.resultReason = 'Not a valid HL7 message';
         } else {
             this.originalMsg = msg;
             this.setSeparators();
             this.separateSegs();
             this.parseSegs();
-
-            for (segment in this.segments) {
-                console.log(this.segments[segment]);
-            }
-
-            console.log(JSON.stringify(this.message));
         }
     },
     
@@ -62,6 +58,8 @@ var HL7Parser = {
         let myMsg = {};
         myMsg.segments = {};
 
+        myMsg.originalMsg = this.originalMsg;
+
         for (let i = 0; i < this.segments.length; i++) {
             let currSeg         = this.segments[i];
             let currSegFields   = currSeg.split(this.fieldSep);
@@ -77,11 +75,13 @@ var HL7Parser = {
                 currSegFields.unshift("MSH"); // Add back "MSH" as the array's first value
                 // set the info header
                 //this.addMSHHeader(currSegFields);
+                myMsg.messageType = currSegFields[9];
             }
 
             let segObj = {};
             segObj.segmentType = currSegFields[0];
             segObj.fieldCount = (currSegFields.length-1);
+            segObj.segmentText = currSeg;
             //segObj.segmentFullText = (currSeg);
             segObj.field = {};
             
@@ -95,32 +95,77 @@ var HL7Parser = {
                 let componentSets = field.split(this.repeatSep);
                 segObj.field[j] = {};
 
-                for (let compSet of componentSets) {
-                    console.log(compSet);
-                }
-
-                let components = field.split(this.compSep);
-
-                segObj.field[j] = {};
+                segObj.field[j].fieldText = field;
                 
-                segObj.field[j].components = {};
+                for (let k in componentSets) {
+                    let currCompSet = componentSets[k];
 
-                // loop through the components in each field to parse them out
-                for (let comp in components) {
-                    let currComp = components[comp];
+                    // segObj.field[j][k] = currCompSet;
+                    // split out into subcomponents
 
-                    segObj.field[j].components[comp] = currComp;
+                    segObj.field[j][k] = {};
+                    let components = currCompSet.split(this.compSep);
+                    for (let l in components) {
+                        let currComp = components[l];
 
-                    // see if there are any subcomponents
+                        // segObj.field[j][k][l] = currComp;
+
+                        // break out into subcomponents
+                        segObj.field[j][k][l] = {};
+                        let subComponents = currCompSet.split(this.subCompSep);
+                        for (let m in subComponents) {
+                            let currSubComponent = subComponents[m];
+
+                            segObj.field[j][k][l][m] = currSubComponent;
+                        }
+                        
+                    }
                 }
 
-                //segObj.field[currField] = currSegFields[currField];
+                
             }
 
             myMsg.segments[i] = (segObj);
         }
 
         this.message = myMsg;
+        this.resultStatus = this.STATUSES.SUCCESS;
+    },
+
+    outputToPage    : function(resultAreaId) {
+        console.log(this.message.segments);
+
+        for (let i in this.message.segments) {
+            let currentSegment = this.message.segments[i];
+            console.log(currentSegment.segmentType);
+
+            // treat MSH a little differently
+            if (currentSegment.segmentType === 'MSH') {
+                // let headerObj       = document.createElement('h3');
+                // let headerString    = '';
+                // add message type to header
+                console.log("Message Type: " + this.message.messageType);
+
+                // just output segment and message
+                console.log("Original Message: " + this.message.originalMsg);
+                console.log("MSH Segment: " + currentSegment.segmentText);
+            } else {
+                
+
+                for (let field in currentSegment.field) {
+                    let currentField = currentSegment.field[field];
+
+                    // console.log(JSON.stringify(currentField));
+                    console.log('['+((field*1)+1)+'] - ' + currentField.fieldText);
+
+                    for (let compSet in currentField) {
+                        let currentCompSet = currentField[compSet];
+
+                        console.log(currentCompSet);
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -131,4 +176,10 @@ let myTest = 'MSH|^~\&|EPIC|EPICADT|SMS|SMSADT|199912271408|CHARRIS|ADT^A04|1817
 'NK1||ROE^MARIE^^^^|SPO||(216)123-4567||EC|||||||||||||||||||||||||||\n'+
 'PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||2688684|||||one^test&three&four||||||||||||||||||||199912271408||||||002376853';
 
-HL7Parser.tryParse(myTest,HL7Parser.OUTPUT_TYPES.PAGE, '');
+// HL7Parser.tryParse(myTest,HL7Parser.OUTPUT_TYPES.PAGE, '');
+
+HL7Parser.parseMessage(myTest);
+
+if (HL7Parser.resultStatus === HL7Parser.STATUSES.SUCCESS) {
+    HL7Parser.outputToPage('');
+}
