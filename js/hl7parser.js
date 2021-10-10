@@ -36,7 +36,7 @@ var HL7Parser = {
         }
     },
     
-    // replace separates with actual separats from message
+    // replace separates with actual separators from message
     setSeparators : function() {
         this.fieldSep   = this.originalMsg.substring(3,4);
         this.compSep    = this.originalMsg.substring(4,5);
@@ -64,6 +64,8 @@ var HL7Parser = {
             let currSeg         = this.segments[i];
             let currSegFields   = currSeg.split(this.fieldSep);
 
+            console.log(currSeg);
+
             //cleanup list and remove last item if empty
             // this will always happen if the segment ends with the field sep
             if (currSegFields[(currSegFields.length - 1)] == '') currSegFields.splice(-1,1);
@@ -80,52 +82,50 @@ var HL7Parser = {
 
             let segObj = {};
             segObj.segmentType = currSegFields[0];
-            segObj.fieldCount = (currSegFields.length-1);
+            segObj.fieldCount = (currSegFields.length-2);
             segObj.segmentText = currSeg;
             //segObj.segmentFullText = (currSeg);
-            segObj.field = {};
+            segObj.fields = {};
             
             // iterate through the fields in the message
             // skip the segment type
             currSegFields.shift();
-            for (let j = 0; j < currSegFields.length; j++) {
-                let field = currSegFields[j];
+            for (let j in currSegFields) {
+                let currField = currSegFields[j];
 
-                // check for any repeating fields 
-                let componentSets = field.split(this.repeatSep);
-                segObj.field[j] = {};
+                segObj.fields[j] = {};
+                segObj.fields[j].value = currField;
 
-                segObj.field[j].fieldText = field;
-                
-                for (let k in componentSets) {
-                    let currCompSet = componentSets[k];
+                // now split up for repeating
+                let fieldRepSet = currField.split(this.repeatSep);
+                for (let k in fieldRepSet) {
+                    let currRepField = fieldRepSet[k];
 
-                    // segObj.field[j][k] = currCompSet;
-                    // split out into subcomponents
+                    segObj.fields[j][k] = {};
+                    segObj.fields[j][k].value = currRepField;
 
-                    segObj.field[j][k] = {};
-                    let components = currCompSet.split(this.compSep);
-                    for (let l in components) {
-                        let currComp = components[l];
+                    // split up for components
+                    let fieldCompSet = currRepField.split(this.compSep);
+                    for (let l in fieldCompSet) {
+                        let currCompField = fieldCompSet[l];
 
-                        // segObj.field[j][k][l] = currComp;
+                        segObj.fields[j][k][l] = {};
+                        segObj.fields[j][k][l].value = currCompField;
 
-                        // break out into subcomponents
-                        segObj.field[j][k][l] = {};
-                        let subComponents = currCompSet.split(this.subCompSep);
-                        for (let m in subComponents) {
-                            let currSubComponent = subComponents[m];
-
-                            segObj.field[j][k][l][m] = currSubComponent;
-                        }
+                        // split up sub components
                         
                     }
                 }
-
-                
             }
 
+            console.log(JSON.stringify(segObj));
+
+            
+            
+
             myMsg.segments[i] = (segObj);
+
+            //console.log(myMsg.segments);
         }
 
         this.message = myMsg;
@@ -166,6 +166,8 @@ var HL7Parser = {
                 }
             }
         }
+
+        console.log(JSON.stringify(this.message));
     }
 };
 
@@ -180,6 +182,8 @@ let myTest = 'MSH|^~\&|EPIC|EPICADT|SMS|SMSADT|199912271408|CHARRIS|ADT^A04|1817
 
 HL7Parser.parseMessage(myTest);
 
-if (HL7Parser.resultStatus === HL7Parser.STATUSES.SUCCESS) {
-    HL7Parser.outputToPage('');
-}
+//console.log(JSON.stringify(HL7Parser.message));
+
+//if (HL7Parser.resultStatus === HL7Parser.STATUSES.SUCCESS) {
+//    HL7Parser.outputToPage('');
+//}
