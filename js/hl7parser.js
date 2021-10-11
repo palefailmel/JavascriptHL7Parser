@@ -1,8 +1,30 @@
-/*
-    Author: Michael Stevenson
+function HL7Message() {};
 
-    2020-06-29: Separating out class into its own file and making changes to not rely on the specific HTML page
-*/
+
+HL7Message.prototype.getSegmentByType = function(type) {
+    let seg = {};
+
+    for (let i in this.segments) {
+        if (this.segments[i].segmentType === type) {
+            seg = this.segments[i];
+            return seg;
+        }
+    }
+
+    return seg;
+}
+
+HL7Message.prototype.getSegmentsByType = function(type) {
+    let segs = [];
+
+    for (let i in this.msg.segments) {
+        if (this.msg.segments[i].segmentType === type) {
+            segs.push(this.msg.segments[i]);
+        }
+    }
+
+    return segs;
+};
 
 var HL7Parser = {
     // adding in output types to flex how info is displayed/sent once parsed
@@ -28,11 +50,15 @@ var HL7Parser = {
         if (msg === '' || msg.substring(0,3) != 'MSH') {
             this.message.resultStatus = this.STATUSES.ERROR
             this.message.resultReason = 'Not a valid HL7 message';
+
+            return null;
         } else {
             this.originalMsg = msg;
             this.setSeparators();
             this.separateSegs();
             this.parseSegs();
+
+            return this.message//new HL7Message(this.message);
         }
     },
     
@@ -42,7 +68,7 @@ var HL7Parser = {
         this.compSep    = this.originalMsg.substring(4,5);
         this.repeatSep  = this.originalMsg.substring(5,6);
         this.subCompSep = this.originalMsg.substring(7,8);
-        this.escapeChar = this.originalMsg.substring(6,7);        
+        this.escapeChar = this.originalMsg.substring(6,7);
     },
     // separate message segments into a list
     separateSegs : function() {
@@ -55,8 +81,8 @@ var HL7Parser = {
     // parse out segments
     // places results in message object
     parseSegs : function() {
-        let myMsg = {};
-        myMsg.segments = {};
+        let myMsg = new HL7Message();
+        myMsg.segments = [];
 
         myMsg.originalMsg = this.originalMsg;
 
@@ -71,119 +97,164 @@ var HL7Parser = {
             if (currSegFields[(currSegFields.length - 1)] == '') currSegFields.splice(-1,1);
 
 
-            // If we're at the MSH, correct segment numbering and set the info header
-            if (currSegFields[0] == 'MSH') {
+            // If we're at the MSH, correct segment numbering and add the field separator as the first value
+            if (currSegFields[0] === 'MSH') {
                 currSegFields[0] = this.fieldSep; //Replace the array's first value "MSH" with the Field Separator
                 currSegFields.unshift("MSH"); // Add back "MSH" as the array's first value
-                // set the info header
-                //this.addMSHHeader(currSegFields);
-                myMsg.messageType = currSegFields[9];
             }
 
             let segObj = {};
+
             segObj.segmentType = currSegFields[0];
-            segObj.fieldCount = (currSegFields.length-2);
+            segObj.fieldCount = (currSegFields.length-1);
             segObj.segmentText = currSeg;
             //segObj.segmentFullText = (currSeg);
-            segObj.fields = {};
-            
-            // iterate through the fields in the message
-            // skip the segment type
-            currSegFields.shift();
-            for (let j in currSegFields) {
+            // segObj.fields = {};
+
+            segObj.fields = [];
+
+            for (let j = 0; j < currSegFields.length; j++) {
                 let currField = currSegFields[j];
 
                 segObj.fields[j] = {};
                 segObj.fields[j].value = currField;
 
-                // now split up for repeating
-                let fieldRepSet = currField.split(this.repeatSep);
-                for (let k in fieldRepSet) {
-                    let currRepField = fieldRepSet[k];
+                segObj.fields[j].instances = [];
 
-                    segObj.fields[j][k] = {};
-                    segObj.fields[j][k].value = currRepField;
+                let repSet = currField.split(this.repeatSep);
+                for (let k = 0; k < repSet.length; k++) {
+                    let repField = repSet[k];
 
-                    // split up for components
-                    let fieldCompSet = currRepField.split(this.compSep);
-                    for (let l in fieldCompSet) {
-                        let currCompField = fieldCompSet[l];
+                    segObj.fields[j].instances[k] = {};
+                    segObj.fields[j].instances[k].value = repField;
 
-                        segObj.fields[j][k][l] = {};
-                        segObj.fields[j][k][l].value = currCompField;
+                    segObj.fields[j].instances[k].components = [];
 
-                        // split up sub components
-                        
+                    let compSet = repField.split(this.compSep);
+                    for (let l = 0; l < compSet.length; l++) {
+                        let compField = compSet[l];
+
+                        segObj.fields[j].instances[k].components[l] = {};
+                        segObj.fields[j].instances[k].components[l].value = compField;
+
+                        segObj.fields[j].instances[k].components[l].subcomps = [];
+
+                        let subCompSet = compField.split(this.subCompSep);
+                        for (let y = 0; y < subCompSet.length; y++) {
+                            let subComp = subCompSet[y];
+
+                            segObj.fields[j].instances[k].components[l].subcomps[y] = {};
+                            segObj.fields[j].instances[k].components[l].subcomps[y].value = subComp;
+                        }
                     }
                 }
             }
-
-            console.log(JSON.stringify(segObj));
-
             
             
 
-            myMsg.segments[i] = (segObj);
+            //console.log(JSON.stringify(segObj));
+
+            
+            myMsg.segments.push(segObj);
+
+            //myMsg.segments[i] = (segObj);
 
             //console.log(myMsg.segments);
         }
 
+        // set MSH segment
+        myMsg.MSH = myMsg.getSegmentByType('MSH');
+
+        // add message type, control id, and hl7 version
+        myMsg.messageType = myMsg.MSH.fields[9].value;
+        myMsg.controlID = myMsg.MSH.fields[10].value;
+        myMsg.version = myMsg.MSH.fields[12].value;
+
         this.message = myMsg;
         this.resultStatus = this.STATUSES.SUCCESS;
+
     },
 
-    outputToPage    : function(resultAreaId) {
-        console.log(this.message.segments);
+    getHTMLOutput   : function(msgObject) {
+        console.log('testing forever');
+        console.log(msgObject);
 
-        for (let i in this.message.segments) {
-            let currentSegment = this.message.segments[i];
-            console.log(currentSegment.segmentType);
+        let outputDiv = document.createElement('div');
 
-            // treat MSH a little differently
-            if (currentSegment.segmentType === 'MSH') {
-                // let headerObj       = document.createElement('h3');
-                // let headerString    = '';
-                // add message type to header
-                console.log("Message Type: " + this.message.messageType);
+        // create header element
+        let headerElem = document.createElement('h3');
+        headerElem.append(document.createTextNode(
+            msgObject.messageType +
+            ' - Control ID: ' + msgObject.controlID +
+            ' - Version: ' + msgObject.version
+        ));
+        outputDiv.appendChild(headerElem);
 
-                // just output segment and message
-                console.log("Original Message: " + this.message.originalMsg);
-                console.log("MSH Segment: " + currentSegment.segmentText);
-            } else {
-                
+        for (let segment of msgObject.segments) {
+            // create main detail section for segment
+            let segDetElem = document.createElement('details');
+            let segSumElem = document.createElement('summary');
+            let fieldDivElem = document.createElement('div');
+            segSumElem.append(document.createTextNode(segment.segmentText));
+            segDetElem.appendChild(segSumElem);
+            segDetElem.appendChild(fieldDivElem);
 
-                for (let field in currentSegment.field) {
-                    let currentField = currentSegment.field[field];
+            for (let j = 1; j < segment.fields.length; j++) {
+                let field = segment.fields[j];
 
-                    // console.log(JSON.stringify(currentField));
-                    console.log('['+((field*1)+1)+'] - ' + currentField.fieldText);
+                let fieldDetElem = document.createElement('details');
+                let fieldSumElem = document.createElement('summary');
+                fieldSumElem.append(document.createTextNode('['+j+'] '+field.value));
+                fieldDetElem.appendChild(fieldSumElem);
+                fieldDivElem.appendChild(fieldDetElem);
 
-                    for (let compSet in currentField) {
-                        let currentCompSet = currentField[compSet];
+                let repDiv = document.createElement('div');
+                fieldDetElem.appendChild(repDiv);
 
-                        console.log(currentCompSet);
+                for (let k = 0; k < field.instances.length; k++) {
+                    let instance = field.instances[k];
+
+                    let instanceDet = document.createElement('details');
+                    repDiv.appendChild(instanceDet);
+
+                    let instanceSum = document.createElement('summary');
+                    instanceSum.append(document.createTextNode('('+k+') '+instance.value));
+                    instanceDet.appendChild(instanceSum);
+
+                    let compDiv = document.createElement('div');
+                    instanceDet.appendChild(compDiv);
+
+                    for (let l = 0; l < instance.components.length; l++) {
+                        let component = instance.components[l];
+
+                        let componentDet = document.createElement('details');
+                        compDiv.appendChild(componentDet);
+
+                        let compSum = document.createElement('summary');
+                        compSum.append(document.createTextNode('['+l+'] '+component.value));
+                        componentDet.appendChild(compSum);
+
+                        let subCompDiv = document.createElement('div');
+                        componentDet.appendChild(subCompDiv);
+
+                        for (let y = 0; y < component.subcomps.length; y++) {
+                            let subcomp = component.subcomps[y];
+
+                            let subDet = document.createElement('details');
+                            subCompDiv.appendChild(subDet);
+
+                            let subSum = document.createElement('summary');
+                            subSum.append(document.createTextNode('['+y+'] '+subcomp.value));
+                            subDet.appendChild(subSum);
+                        }
                     }
                 }
             }
-        }
 
-        console.log(JSON.stringify(this.message));
+            outputDiv.appendChild(segDetElem);
+        }
+        
+
+        return outputDiv;
     }
 };
-
-let testMsg = 'TVNIfF5+XCZ8RVBJQ3xFUElDQURUfFNNU3xTTVNBRFR8MTk5OTEyMjcxNDA4fENIQVJSSVN8QURUXkEwNHwxODE3NDU3fER8ICAyLjV8ClBJRHx8MDQ5MzU3NV5eXjJeSUQgMXw0NTQ3MjF8fERPRV5KT0hOXl5eXnxET0VeSk9ITl5eXl58MTk0ODAyMDN8TXx8QnwyNSAgNCBNWVNUUkVFVCBBVkVeXk1ZVE9XTl5PSF40NDEyM15VU0F8fCgyMTYpMTIzLTQ1Njd8fHxNfE5PTnw0MDAwMDM0MDN+MTEyOTA4NnwKTksxfHxST0VeTUFSSUVeXl5efFNQT3x8KDIxNikxMjMtNDU2N3x8RUN8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHwKUFYxfHxPfDE2OCB+MjE5fkN+UE1BXl5eXl5eXl5efHx8fDI3N15BTExFTiBNWUxBU1ROQU1FXkJPTk5JRV5eXl58fHx8fHx8ICB8fHwgfHwyNjg4Njg0fHx8fHxvbmVedGVzdCZ0aHJlZSZmb3VyfHx8fHx8fHx8fHx8fHx8fHx8fHwxOTk5MTIyNzE0MDh8fHx8fHwwMDIzNzY4NTM=';
-
-let myTest = 'MSH|^~\&|EPIC|EPICADT|SMS|SMSADT|199912271408|CHARRIS|ADT^A04|1817457|D|  2.5|\n'+
-'PID||0493575^^^2^ID 1|454721||DOE^JOHN^^^^|DOE^JOHN^^^^|19480203|M||B|25  4 MYSTREET AVE^^MYTOWN^OH^44123^USA||(216)123-4567|||M|NON|400003403~1129086|\n'+
-'NK1||ROE^MARIE^^^^|SPO||(216)123-4567||EC|||||||||||||||||||||||||||\n'+
-'PV1||O|168 ~219~C~PMA^^^^^^^^^||||277^ALLEN MYLASTNAME^BONNIE^^^^|||||||  ||| ||2688684|||||one^test&three&four||||||||||||||||||||199912271408||||||002376853';
-
-// HL7Parser.tryParse(myTest,HL7Parser.OUTPUT_TYPES.PAGE, '');
-
-HL7Parser.parseMessage(myTest);
-
-//console.log(JSON.stringify(HL7Parser.message));
-
-//if (HL7Parser.resultStatus === HL7Parser.STATUSES.SUCCESS) {
-//    HL7Parser.outputToPage('');
-//}

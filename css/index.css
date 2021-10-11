@@ -1,0 +1,31 @@
+body {
+    background-color:rgb(209, 222, 226);
+}
+
+details > summary {
+    list-style: none;
+}
+details > summary::-webkit-details-marker {
+    display: none;
+}
+
+details {
+    padding: .5em;
+}
+
+details > summary {
+    background-color: rgb(144, 195, 212);
+    padding: .5em;
+    border-radius: 5px;
+}
+details > div {
+    background-color: rgb(202, 215, 219);
+    border-radius: 3px;
+    padding: 1em;
+}
+
+#resultsArea div h3 {
+    padding: .5em;
+    background-color:rgb(144, 195, 212);
+    border-radius: 3px;
+}
