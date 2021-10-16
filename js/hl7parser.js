@@ -218,7 +218,7 @@ var HL7Parser = {
                     repDiv.appendChild(instanceDet);
 
                     let instanceSum = document.createElement('summary');
-                    instanceSum.append(document.createTextNode('('+k+') '+instance.value));
+                    instanceSum.append(document.createTextNode('('+(k+1)+') '+instance.value));
                     instanceDet.appendChild(instanceSum);
 
                     let compDiv = document.createElement('div');
@@ -231,7 +231,7 @@ var HL7Parser = {
                         compDiv.appendChild(componentDet);
 
                         let compSum = document.createElement('summary');
-                        compSum.append(document.createTextNode('['+l+'] '+component.value));
+                        compSum.append(document.createTextNode('['+(l+1)+'] '+component.value));
                         componentDet.appendChild(compSum);
 
                         let subCompDiv = document.createElement('div');
@@ -244,7 +244,7 @@ var HL7Parser = {
                             subCompDiv.appendChild(subDet);
 
                             let subSum = document.createElement('summary');
-                            subSum.append(document.createTextNode('['+y+'] '+subcomp.value));
+                            subSum.append(document.createTextNode('['+(y+1)+'] '+subcomp.value));
                             subDet.appendChild(subSum);
                         }
                     }
